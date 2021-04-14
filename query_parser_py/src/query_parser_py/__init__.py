@@ -14,6 +14,8 @@ def is_matched(elem, tree):
     
     def inner_matched(elem, expr):
         if type(expr) == Regex:
+            import pdb; pdb.set_trace()
+
             if re.match(str(expr)[1:-1], elem[key]):
                 return True
         elif type(expr) == Word:
@@ -82,6 +84,41 @@ def _main(data, query):
         tmp = match(row, tree)
         if tmp:
             result.append(row)
+    return result
+
+
+class SearcherBase():
+    def __init__(self, data):
+        self.rows = data
+
+    def match(self, tree):
+        pass
+
+    def search(self, query):
+        tree = parser.parse(query)
+        result = []
+        for row in self.rows:
+            tmp = self.match(row, tree)
+            if tmp:
+                result.append(row)
+        return result
+
+class Searcher(SearcherBase):
+    default_operator = 'and'
+    default_operator_in_search_field = 'or'
+
+    def matchWord(elem, tree, negative=False, has_wildcard=False):
+        return True
+
+    def matchRegex(elem, tree, negative=False, has_wildcard=False):
+        return True
+
+    def matchPhrase(elem, tree, negative=False, has_wildcard=False):
+        return True
+
+def _main2(data, query):
+    s = Searcher(data)
+    reslt = s.search(query)
     return result
 
 def main():
