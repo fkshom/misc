@@ -1,5 +1,5 @@
 import luqum
-from luqum.tree import SearchField, FieldGroup, OrOperation, AndOperation, Regex, Word, Group, Phrase
+from luqum.tree import SearchField, FieldGroup, OrOperation, AndOperation, Regex, Word, Group, Phrase, Not, UnknownOperation
 from luqum.parser import parser
 from luqum.pretty import prettify
 from pprint import pprint as pp
@@ -8,118 +8,122 @@ import re
 from functools import reduce
 import fnmatch
 
-def is_matched(elem, tree):
-    key = tree.name
-    expr = tree.expr
-    
-    def inner_matched(elem, expr):
-        if type(expr) == Regex:
-            import pdb; pdb.set_trace()
 
-            if re.match(str(expr)[1:-1], elem[key]):
+class MatcherBase():
+    def __init__(self, query):
+        self._query = query
+        self._tree = parser.parse(query)
+
+    def matchWord(self, elem, key, expr, has_wildcard):
+        if has_wildcard:
+            if fnmatch.fnmatch(elem.get(key, ""), expr):
                 return True
-        elif type(expr) == Word:
-            if expr.has_wildcard():
-                if fnmatch.fnmatch(elem[key], str(expr)):
-                    return True
-            else:
-                if str(expr) == elem[key]:
-                    return True
-        elif type(expr) == Phrase:
-            if expr.has_wildcard():
-                if fnmatch.fnmatch(elem[key], str(expr)[1:-1]):
-                    return True
-            else:
-                if str(expr)[1:-1] == elem[key]:
-                    return True
         else:
-            raise Exception(f"Unknown type: {type(expr)}")
+            if expr == elem.get(key, ""):
+                return True
         return False
 
-    if type(expr) in [Regex, Word, Phrase]:
-        return inner_matched(elem, expr)
-    elif type(expr) == FieldGroup:
-        if type(expr.children[0]) == OrOperation:
-            result = [inner_matched(elem, child) for child in expr.children[0].children]
-            return any(result)
-        elif type(expr.children[0]) == AndOperation:
-            result = [inner_matched(elem, child) for child in expr.children[0].children]
-            return all(result)
+    def matchRegex(self, elem, key, expr, has_wildcard):
+        return re.match(expr, elem.get(key, ""))
+
+    def matchPhrase(self, elem, key, expr, has_wildcard):
+        if has_wildcard:
+            if fnmatch.fnmatch(elem.get(key, ""), expr):
+                return True
+        else:
+            if expr == elem.get(key, ""):
+                return True
+
+    def check_match(self, item, tree, negative=False):
+        key = tree.name
+        expr = tree.expr
+
+        def inner_matched(elem, expr, negative=False):
+            if type(expr) == Word:
+                if self.matchWord(elem, key, str(expr), expr.has_wildcard()):
+                    return True ^ negative
+            elif type(expr) == Regex:
+                if self.matchRegex(elem, key, str(expr)[1:-1], expr.has_wildcard()):
+                    return True ^ negative
+            elif type(expr) == Phrase:
+                if self.matchPhrase(elem, key, str(expr)[1:-1], expr.has_wildcard()):
+                    return True ^ negative
+            else:
+                raise Exception(f"Unknown type: {type(expr)}")
+            return False ^ negative
+
+        if type(expr) in [Regex, Word, Phrase]:
+            return inner_matched(item, expr, negative=negative)
+        elif type(expr) == FieldGroup:
+            if type(expr.children[0]) == OrOperation or \
+              (type(expr.children[0]) == UnknownOperation and self.default_operator_in_search_field == 'or'):
+                result = [inner_matched(item, child, negative=negative) for child in expr.children[0].children]
+                if negative:
+                    return all(result)
+                else:
+                    return any(result)
+            elif type(expr.children[0]) == AndOperation or \
+                (type(expr.children[0]) == UnknownOperation and self.default_operator_in_search_field == 'and'):
+                result = [inner_matched(item, child, negative=negative) for child in expr.children[0].children]
+                if negative:
+                    return any(result)
+                else:
+                    return all(result)
+            else:
+                import pdb; pdb.set_trace()
+                raise Exception(f"Unknown type: {type(expr)}")
         else:
             import pdb; pdb.set_trace()
             raise Exception(f"Unknown type: {type(expr)}")
-    else:
-        import pdb; pdb.set_trace()
-        raise Exception(f"Unknown type: {type(expr)}")
 
-    return False
+        return False
 
-def match(elem, tree):
+    def _match(self, item, tree, negative=False):
+        if type(tree) == SearchField:
+            return self.check_match(item, tree, negative=negative)
 
-    # if type(tree) == FieldGroup:
-    #     resolver = UnknownOperationResolver(resolve_to=OrOperation)
-    #     return search_from_data(rows, tree)
-    if type(tree) == SearchField:
-        return is_matched(elem, tree)
+        if type(tree) == OrOperation or \
+            (type(tree) == UnknownOperation and self.default_operator == 'or'):
+            results = [self._match(item, child, negative=negative) for child in tree.children]
+            if negative:
+                return all(results)
+            else:
+                return any(results)
+        elif type(tree) == AndOperation or \
+            (type(tree) == UnknownOperation and self.default_operator == 'and'):
+            results = [self._match(item, child, negative=negative) for child in tree.children]
+            if negative:
+                return any(results)
+            else:
+                return all(results)
+        elif type(tree) == Group:
+            if len(tree.children) != 1:
+                raise Exception(f"Group instance has elements more one. {tree}")
+            return self._match(item, tree.children[0], negative=negative)
+        elif type(tree) == Not:
+            if len(tree.children) != 1:
+                raise Exception(f"Group instance has elements more one. {tree}")
+            return self._match(item, tree.children[0], negative=(not negative))
+        else:
+            raise Exception(f"Unknown type: {type(tree)}")
 
-    if type(tree) == OrOperation:
-        results = [match(elem, child) for child in tree.children]
-        return any(results)
-    elif type(tree) == AndOperation:
-        results = [match(elem, child) for child in tree.children]
-        return all(results)
-    elif type(tree) == Group:
-        if len(tree.children) != 1:
-            raise Exception(f"Group instance has elements more one. {tree}")
-        return match(elem, tree.children[0])
+    def is_matched(self, item):
+        return self._match(item, self._tree)
+        
 
-    import pdb; pdb.set_trace()
-
-def _main(data, query):
-    tree = parser.parse(query)
-    pp(tree)
-
-    result = []
-    for row in data:
-        tmp = match(row, tree)
-        if tmp:
-            result.append(row)
-    return result
-
-
-class SearcherBase():
-    def __init__(self, data):
-        self.rows = data
-
-    def match(self, tree):
-        pass
-
-    def search(self, query):
-        tree = parser.parse(query)
-        result = []
-        for row in self.rows:
-            tmp = self.match(row, tree)
-            if tmp:
-                result.append(row)
-        return result
-
-class Searcher(SearcherBase):
+class Matcher(MatcherBase):
     default_operator = 'and'
     default_operator_in_search_field = 'or'
 
-    def matchWord(elem, tree, negative=False, has_wildcard=False):
-        return True
+    # def matchWord(self, elem, tree, negative, has_wildcard):
+    #     return True
 
-    def matchRegex(elem, tree, negative=False, has_wildcard=False):
-        return True
+    # def matchRegex(self, elem, tree, negative, has_wildcard):
+    #     return True
 
-    def matchPhrase(elem, tree, negative=False, has_wildcard=False):
-        return True
+    # def matchPhrase(self, elem, tree, negative, has_wildcard):
+    #     return True
 
-def _main2(data, query):
-    s = Searcher(data)
-    reslt = s.search(query)
-    return result
 
 def main():
     data = [
