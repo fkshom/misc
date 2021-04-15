@@ -10,29 +10,20 @@ import fnmatch
 
 
 class MatcherBase():
-    def __init__(self, query):
+    def __init__(self, query, default_operator=None, default_operator_in_search_field=None):
         self._query = query
+        self.default_operator = default_operator or 'and'
+        self.default_operator_in_search_field = default_operator_in_search_field or 'or'
         self._tree = parser.parse(query)
 
     def matchWord(self, elem, key, expr, has_wildcard):
-        if has_wildcard:
-            if fnmatch.fnmatch(elem.get(key, ""), expr):
-                return True
-        else:
-            if expr == elem.get(key, ""):
-                return True
-        return False
+        raise NotImplementedError("matchWord must be implemented on subclass")
 
     def matchRegex(self, elem, key, expr, has_wildcard):
-        return re.match(expr, elem.get(key, ""))
+        raise NotImplementedError("matchRegex must be implemented on subclass")
 
     def matchPhrase(self, elem, key, expr, has_wildcard):
-        if has_wildcard:
-            if fnmatch.fnmatch(elem.get(key, ""), expr):
-                return True
-        else:
-            if expr == elem.get(key, ""):
-                return True
+        raise NotImplementedError("matchPhrase must be implemented on subclass")
 
     def check_match(self, item, tree, negative=False):
         key = tree.name
@@ -98,11 +89,11 @@ class MatcherBase():
                 return all(results)
         elif type(tree) == Group:
             if len(tree.children) != 1:
-                raise Exception(f"Group instance has elements more one. {tree}")
+                raise Exception(f"Group instance has more than one elements. There are {tree}.")
             return self._match(item, tree.children[0], negative=negative)
         elif type(tree) == Not:
             if len(tree.children) != 1:
-                raise Exception(f"Group instance has elements more one. {tree}")
+                raise Exception(f"Group instance has more than one elements. There are {tree}.")
             return self._match(item, tree.children[0], negative=(not negative))
         else:
             raise Exception(f"Unknown type: {type(tree)}")
@@ -111,18 +102,26 @@ class MatcherBase():
         return self._match(item, self._tree)
         
 
-class Matcher(MatcherBase):
-    default_operator = 'and'
-    default_operator_in_search_field = 'or'
+class DictMatcher(MatcherBase):
+    def matchWord(self, elem, key, expr, has_wildcard):
+        if has_wildcard:
+            if fnmatch.fnmatch(elem.get(key, ""), expr):
+                return True
+        else:
+            if expr == elem.get(key, ""):
+                return True
+        return False
 
-    # def matchWord(self, elem, tree, negative, has_wildcard):
-    #     return True
+    def matchRegex(self, elem, key, expr, has_wildcard):
+        return re.match(expr, elem.get(key, ""))
 
-    # def matchRegex(self, elem, tree, negative, has_wildcard):
-    #     return True
-
-    # def matchPhrase(self, elem, tree, negative, has_wildcard):
-    #     return True
+    def matchPhrase(self, elem, key, expr, has_wildcard):
+        if has_wildcard:
+            if fnmatch.fnmatch(elem.get(key, ""), expr):
+                return True
+        else:
+            if expr == elem.get(key, ""):
+                return True
 
 
 def main():

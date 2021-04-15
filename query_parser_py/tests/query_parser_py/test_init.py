@@ -114,7 +114,7 @@ datas = [
 
 @pytest.mark.parametrize("query, expected", datas)
 def test(data, query, expected):
-    matcher = query_parser_py.MatcherBase(query)
+    matcher = query_parser_py.DictMatcher(query)
     result = []
     for row in data:
         if matcher.is_matched(row):
@@ -124,22 +124,32 @@ def test(data, query, expected):
 
 
 datas1 = [
-    ("title:fox", 
+    ("title:fox", 'and', 'or',
      [dict(title='fox', body="unko1")]
     ),
-    ("title:(fox cat dog)",
+    ("title:(fox cat dog)", 'and', 'or',
      [dict(title="fox", body="unko1"),
       dict(title="cat", body="unko2"),
       dict(title="dog", body="unko3")]
     ),
-    ("title:fox body:unko1",
+    ("title:(fox cat dog)", 'or', 'and',
+     []
+    ),
+    ("title:fox body:unko1", 'and', 'or',
      [dict(title="fox", body="unko1")]
+    ),
+    ("title:fox body:unko2", 'or', 'or',
+     [dict(title="fox", body="unko1"),
+      dict(title="cat", body="unko2")]
     ),
 ]
 
-@pytest.mark.parametrize("query, expected", datas1)
-def test(data, query, expected):
-    matcher = query_parser_py.Matcher(query)
+@pytest.mark.parametrize("query, default_op, default_op_in_search_field, expected", datas1)
+def test(data, query, default_op, default_op_in_search_field, expected):
+    matcher = query_parser_py.DictMatcher(query,
+      default_operator=default_op,
+      default_operator_in_search_field=default_op_in_search_field
+    )
     result = []
     for row in data:
         if matcher.is_matched(row):
