@@ -6,10 +6,12 @@ authors = ["Your Name <you@example.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.8"
+Cerberus = "^1.3.3"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.3"
 pytest-watch = "^4.2.0"
+assertpy = "^1.1"
 
 [build-system]
 requires = ["poetry>=0.12"]
