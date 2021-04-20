@@ -3,84 +3,136 @@ class Workflow:
     def __init__(self):
         self.tasks = []
 
-    def run(self):
-        pass
-
     def __lshift__(self, other):
-        self.tasks.append(other)
+        if type(other) == list:
+            self.tasks.extend(other)
+        else:
+            self.tasks.append(other)
         return self
 
+    def show(self):
+        print(f"Show Workflow")
+        for task in self.tasks:
+            task.show()
+        print()
+
+    def run(self, store):
+        for task in self.tasks:
+            print(f"[DEBUG] Start {task.__class__.__name__}")
+            result = task.run(store)
+            store['returncode'] = 0
+            if result:
+                continue
+            else:
+                store['returncode'] = 1
+                break
+
+        return store
+
 class Task:
-    pass
+    def __init__(self, **kwargs):
+        self.params = kwargs
 
-class CheckState(Task):
-    def __init__(self, eq):
-        self.state = eq
+    def show(self):
+        print(f"  {self.__class__.__name__}")
 
-    def run(self, w):
-        w.datastore
-        w.result = True
+class Diff(Task):
+    def run(self, store):
+        for file in store['files']:
+            print(f'diff {file}')
+            store.setdefault('diff', [])
+            store['diff'].append(dict(
+                diff_exists=True,
+                file=file,
+                stdout="stdouts\nstdouts",
+                stderr="stderr\nstderr",
+            ))
         return True
 
+class IfCheckModeThenShowSummaryAndBreak(Task):
+    def run(self, store):
+        if self.params['checkmode']:
+            print("Sumamry")
+            for diffresult in store['diff']:
+                print()
+                print(f"  file: {diffresult['file']}")
+                print(f"  diff_exists: {diffresult['diff_exists']}")
+            print("This is CHECK MODE")
+            return False
+        return True
+
+class IfNoDifExistsThenBreak(Task):
+    def run(self, store):
+        if store['diff'][0]['diff_exists']:
+            print(f"  diff exists")
+            return True
+        else:
+            print(f"  NO diff exists")
+            return False
+
+class CheckState(Task):
+    def run(self, store):
+        return True
+
+class SetState(Task):
+    def run(self, store):
+        return True
 
 def main():
-    w = Workflow()
+    files = [
+        'file/1.csv',
+        'file/2.csv',
+    ]
 
-    w << Diff()
+    mode = 'enable'
+    print("START workflow_for_all")
+    workflow_for_all = Workflow()
 
-    if mode == 'enable':
-        w << (
-            CheckState(eq='enable'),
-            SetState(to='disable'),
-            CheckState(eq='disable'),
-        )
-    elif mode == 'disable':
-        w << (
-            CheckState(eq='disable'),
-        )
-    elif mode == 'force-enable':
-        w << (
-            SetState(to='disable'),
-            CheckState(eq='disable'),
-        )
-    elif mode == 'force-disable':
-        w << (
-            SetState(to='disable'),
-            CheckState(eq='disable'),
-        )
-    else:
-        raise Exception()
-
-    w << (
-        Replace(),
-        Diff()
+    workflow_for_all << Diff()
+    workflow_for_all << IfCheckModeThenShowSummaryAndBreak(checkmode=False)
+    datastore = dict(
+        files=files
     )
+    result = workflow_for_all.run(datastore)
+    if result['returncode'] != 0:
+        return
 
-    if mode == 'enable':
-        w << (
-            CheckState(eq='disable'),
-            SetState(to='enable'),
-            CheckState(eq='enable'),
-        )
-    elif mode == 'disable':
-        w << (
-            CheckState(eq='disable'),
-        )
-    elif mode == 'force-enable':
-        w << (
-            SetState(to='enable'),
-            CheckState(eq='enable'),
-        )
-    elif mode == 'force-disable':
-        w << (
-            SetState(to='disable'),
-            CheckState(eq='disable'),
-        )
-    else:
-        raise Exception()
+    print("START workflow")
+    for file in files:
+        w = Workflow()
+        w << Diff()
+        w << IfNoDifExistsThenBreak()
 
-    datastore = {}
-    w.run(datastore)
+        if mode == 'enable':
+            w << [ CheckState(eq='enable'), SetState(to='disable'), CheckState(eq='disable'), ]
+        elif mode == 'disable':
+            w << ( CheckState(eq='disable'), )
+        elif mode == 'force-enable':
+            w << ( SetState(to='disable'), CheckState(eq='disable'), )
+        elif mode == 'force-disable':
+            w << ( SetState(to='disable'), CheckState(eq='disable'), )
+        else:
+            raise Exception()
+
+        # w << (
+        #     Replace(), Diff()
+        # )
+
+        # if mode == 'enable':
+        #     w << ( CheckState(eq='disable'), SetState(to='enable'), CheckState(eq='enable'), )
+        # elif mode == 'disable':
+        #     w << ( CheckState(eq='disable'), )
+        # elif mode == 'force-enable':
+        #     w << ( SetState(to='enable'), CheckState(eq='enable'), )
+        # elif mode == 'force-disable':
+        #     w << ( SetState(to='disable'), CheckState(eq='disable'), )
+        # else:
+        #     raise Exception()
+
+        datastore = dict(
+            files=[file]
+        )
+        w.run(datastore)
 
 if __name__ == '__main__':
     main()
