@@ -72,11 +72,28 @@ class IfNoDifExistsThenBreak(Task):
 
 class CheckState(Task):
     def run(self, store):
+        current_state = self.get_state()
+        desired_state = dict(enable=True, disable=False)[self.params['eq']]
+        if current_state == desired_state:
+            return True
+        else:
+            return False
+
+    def get_state(self):
+        vclient = self.engine.params['vclient']
+        dvpg = DistributedVirtualPortgroup(vclient)
+        dvpg.load('pg1')
+
         return True
 
 class SetState(Task):
     def run(self, store):
         return True
+
+    def set_state_to(self, to):
+        return True
+
+from rich.console import Console
 
 def main():
     files = [
@@ -86,7 +103,7 @@ def main():
 
     mode = 'enable'
     print("START workflow_for_all")
-    workflow_for_all = Workflow()
+    workflow_for_all = Workflow(vclient=vclient)
 
     workflow_for_all << Diff()
     workflow_for_all << IfCheckModeThenShowSummaryAndBreak(checkmode=False)
@@ -100,8 +117,7 @@ def main():
     print("START workflow")
     for file in files:
         w = Workflow()
-        w << Diff()
-        w << IfNoDifExistsThenBreak()
+        w << Diff() << IfNoDifExistsThenBreak()
 
         if mode == 'enable':
             w << [ CheckState(eq='enable'), SetState(to='disable'), CheckState(eq='disable'), ]
