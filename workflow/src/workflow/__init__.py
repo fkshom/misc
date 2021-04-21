@@ -1,4 +1,35 @@
 
+class Workflow1:
+    def __init__(self):
+        self.tasks = []
+
+    def __lshift__(self, other):
+        if type(other) == list:
+            self.tasks.extend(other)
+        else:
+            self.tasks.append(other)
+        return self
+
+    def show(self):
+        print(f"Show Workflow")
+        for task in self.tasks:
+            task.show()
+        print()
+
+    def run(self, store):
+        for task in self.tasks:
+            print(f"[DEBUG] Start {task.__class__.__name__}")
+            result = task.run(store)
+            store['returncode'] = 0
+            if result:
+                continue
+            else:
+                store['returncode'] = 1
+                break
+
+        return store
+
+
 class Workflow:
     def __init__(self):
         self.tasks = []
@@ -61,7 +92,7 @@ class IfCheckModeThenShowSummaryAndBreak(Task):
             return False
         return True
 
-class IfNoDifExistsThenBreak(Task):
+class IfNoDiffExistsThenBreak(Task):
     def run(self, store):
         if store['diff'][0]['diff_exists']:
             print(f"  diff exists")
@@ -97,28 +128,32 @@ from rich.console import Console
 
 def main():
     files = [
-        'file/1.csv',
-        'file/2.csv',
+        ('file/1.csv', 'enable'),
+        ('file/2.csv', 'disable'),
     ]
 
-    mode = 'enable'
     print("START workflow_for_all")
-    workflow_for_all = Workflow(vclient=vclient)
-
-    workflow_for_all << Diff()
-    workflow_for_all << IfCheckModeThenShowSummaryAndBreak(checkmode=False)
-    datastore = dict(
+    store = dict(
         files=files
     )
-    result = workflow_for_all.run(datastore)
-    if result['returncode'] != 0:
+    w = Workflow1(vclient=vclient)
+    w.start(store)
+    w << Diff()
+    w << IfCheckModeThenShowSummaryAndBreak(checkmode=False)
+    result = w.end()
+
+    if result == False:
         return
 
-    print("START workflow")
-    for file in files:
-        w = Workflow()
-        w << Diff() << IfNoDifExistsThenBreak()
-
+    w = Workflow1(vclient=vclient)
+    for file, mode in store['files']:
+        store = dict(
+            file=file,
+            mode=mode,
+        )
+        w.start(store)
+        store['files'] = [file]
+        w << Diff() << IfNoDiffExistsThenBreak()
         if mode == 'enable':
             w << [ CheckState(eq='enable'), SetState(to='disable'), CheckState(eq='disable'), ]
         elif mode == 'disable':
@@ -129,10 +164,8 @@ def main():
             w << ( SetState(to='disable'), CheckState(eq='disable'), )
         else:
             raise Exception()
-
-        # w << (
-        #     Replace(), Diff()
-        # )
+        
+        w << Replace() << Diff()
 
         # if mode == 'enable':
         #     w << ( CheckState(eq='disable'), SetState(to='enable'), CheckState(eq='enable'), )
@@ -145,10 +178,10 @@ def main():
         # else:
         #     raise Exception()
 
-        datastore = dict(
-            files=[file]
-        )
-        w.run(datastore)
+        result = w.end()
+        if result == False:
+            print(f"failed {file}")
+
 
 if __name__ == '__main__':
     main()

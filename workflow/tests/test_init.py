@@ -3,6 +3,22 @@ from pprint import pprint as pp
 import workflow as workflow
 from unittest.mock import patch
 
+class TestWorkflow1():
+    def test1(self):
+        w = workflow.Workflow1()
+        store = dict(target=1)
+        w.start(store=store)
+        w >> Task1() >> Task2()
+        if store['status']:
+            w >> Task3a()
+        else:
+            w >> Task3b()
+        for file in store['files']:
+            w >> Task4(file=file)
+        
+        w.end()
+
+
 class TestDiff:
     def test_1(self):
         store = dict(
