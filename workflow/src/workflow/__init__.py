@@ -126,6 +126,25 @@ class SetState(Task):
 
 from rich.console import Console
 
+def gen_workflow():
+    checkmode = False
+    user_autoreplaceall_meta = True
+    desire_status = 'enable'
+    w = Workflow1(vclient=vclient)
+
+    if checkmode == True:
+        w << DiffFiles()
+        w << ShowSummary()
+        return w
+    
+    w << 
+
+def main1():
+    
+    w = gen_workflow(
+        
+    )
+
 def main():
     files = [
         ('file/1.csv', 'enable'),
