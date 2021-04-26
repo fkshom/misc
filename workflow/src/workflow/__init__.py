@@ -1,44 +1,37 @@
 
-class Workflow1:
-    def __init__(self):
-        self.tasks = []
-
-    def __lshift__(self, other):
-        if type(other) == list:
-            self.tasks.extend(other)
-        else:
-            self.tasks.append(other)
-        return self
-
-    def show(self):
-        print(f"Show Workflow")
-        for task in self.tasks:
-            task.show()
-        print()
-
-    def run(self, store):
-        for task in self.tasks:
-            print(f"[DEBUG] Start {task.__class__.__name__}")
-            result = task.run(store)
-            store['returncode'] = 0
-            if result:
-                continue
-            else:
-                store['returncode'] = 1
-                break
-
-        return store
-
-
 class Workflow:
     def __init__(self):
         self.tasks = []
+        self.state = 'init'
+        self.task_history = []
+
+    def __rshift__(self, other):
+        return self.__lshift__(other)
 
     def __lshift__(self, other):
+        tasks = []
         if type(other) == list:
-            self.tasks.extend(other)
+            tasks.extend(other)
         else:
-            self.tasks.append(other)
+            tasks.append(other)
+        
+        self.task_history.extend(tasks)
+
+        if self.state == 'failed':
+            return self
+
+        while tasks:
+            task = tasks.pop(0)
+            self.state = 'running'
+            print(f"[DEBUG] Start {task.__class__.__name__}")
+            result = task.run(self.store)
+            if result:
+                continue
+            else:
+                self.state = 'failed'
+                break
+
+        self.state = 'success'
         return self
 
     def show(self):
@@ -47,18 +40,11 @@ class Workflow:
             task.show()
         print()
 
-    def run(self, store):
-        for task in self.tasks:
-            print(f"[DEBUG] Start {task.__class__.__name__}")
-            result = task.run(store)
-            store['returncode'] = 0
-            if result:
-                continue
-            else:
-                store['returncode'] = 1
-                break
+    def start(self, store):
+        self.store = store
 
-        return store
+    def end(self):
+        return self.state
 
 class Task:
     def __init__(self, **kwargs):
@@ -66,6 +52,11 @@ class Task:
 
     def show(self):
         print(f"  {self.__class__.__name__}")
+
+    def run(self, store):
+        print(f"[DEBUG] Start {self.__class__.__name__}")
+        return True
+
 
 class Diff(Task):
     def run(self, store):
@@ -124,26 +115,13 @@ class SetState(Task):
     def set_state_to(self, to):
         return True
 
+class VClient:
+    def __init__(self):
+        pass
+    def content(self):
+        return None
+
 from rich.console import Console
-
-def gen_workflow():
-    checkmode = False
-    user_autoreplaceall_meta = True
-    desire_status = 'enable'
-    w = Workflow1(vclient=vclient)
-
-    if checkmode == True:
-        w << DiffFiles()
-        w << ShowSummary()
-        return w
-    
-    w << 
-
-def main1():
-    
-    w = gen_workflow(
-        
-    )
 
 def main():
     files = [
@@ -155,16 +133,18 @@ def main():
     store = dict(
         files=files
     )
-    w = Workflow1(vclient=vclient)
+    vclient = VClient()
+    vclient.connect(host='vcenter', user='user', password='pass', reuse=True)
+    w = Workflow(vclient=vclient)
     w.start(store)
     w << Diff()
     w << IfCheckModeThenShowSummaryAndBreak(checkmode=False)
     result = w.end()
 
-    if result == False:
+    if result == 'failed':
         return
 
-    w = Workflow1(vclient=vclient)
+    w = Workflow(vclient=vclient)
     for file, mode in store['files']:
         store = dict(
             file=file,

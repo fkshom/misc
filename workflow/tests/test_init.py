@@ -3,10 +3,30 @@ from pprint import pprint as pp
 import workflow as workflow
 from unittest.mock import patch
 
-class TestWorkflow1():
+class Task1(workflow.Task): pass
+
+class Task2(workflow.Task):
+    def run(self, store):
+        store['status'] = True
+        return True
+
+class Task3a(workflow.Task): pass
+
+class Task3b(workflow.Task): pass
+
+class Task4(workflow.Task):
+    def run(self, store):
+        pp(store)
+        store.setdefault('result', [])
+        store['result'].append(self.params['file'])
+        return True
+
+class TestWorkflow():
     def test1(self):
-        w = workflow.Workflow1()
-        store = dict(target=1)
+        w = workflow.Workflow()
+        store = dict(
+            files=['file1', 'file2']
+        )
         w.start(store=store)
         w >> Task1() >> Task2()
         if store['status']:
@@ -16,8 +36,21 @@ class TestWorkflow1():
         for file in store['files']:
             w >> Task4(file=file)
         
-        w.end()
+        resultcode = w.end()
 
+        assert store['result'] == [
+            'file1',
+            'file2',
+        ]
+        assert resultcode == 'success'
+        assert list(map(lambda task: task.__class__.__name__,
+                        w.task_history)) == [
+                            'Task1',
+                            'Task2',
+                            'Task3a',
+                            'Task4',
+                            'Task4',
+                        ]
 
 class TestDiff:
     def test_1(self):
