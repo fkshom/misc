@@ -1,9 +1,11 @@
+from pprint import pprint as pp
 
 class Workflow:
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.tasks = []
         self.state = 'init'
         self.task_history = []
+        self.params = kwargs
 
     def __rshift__(self, other):
         return self.__lshift__(other)
@@ -24,7 +26,7 @@ class Workflow:
             task = tasks.pop(0)
             self.state = 'running'
             print(f"[DEBUG] Start {task.__class__.__name__}")
-            result = task.run(self.store)
+            result = task.run(self.store, self)
             if result:
                 continue
             else:
@@ -53,15 +55,20 @@ class Task:
     def show(self):
         print(f"  {self.__class__.__name__}")
 
-    def run(self, store):
+    def run(self, store, engine):
         print(f"[DEBUG] Start {self.__class__.__name__}")
         return True
 
+class DistributedVirtualPortgroup:
+    def __init__(self, vclient):
+        self.vclient = vclient
+    def load(self, pgname):
+        pass
 
 class Diff(Task):
-    def run(self, store):
+    def run(self, store, engine):
         for file in store['files']:
-            print(f'diff {file}')
+            print(f'diffing {file}')
             store.setdefault('diff', [])
             store['diff'].append(dict(
                 diff_exists=True,
@@ -72,7 +79,7 @@ class Diff(Task):
         return True
 
 class IfCheckModeThenShowSummaryAndBreak(Task):
-    def run(self, store):
+    def run(self, store, engine):
         if self.params['checkmode']:
             print("Sumamry")
             for diffresult in store['diff']:
@@ -84,7 +91,7 @@ class IfCheckModeThenShowSummaryAndBreak(Task):
         return True
 
 class IfNoDiffExistsThenBreak(Task):
-    def run(self, store):
+    def run(self, store, engine):
         if store['diff'][0]['diff_exists']:
             print(f"  diff exists")
             return True
@@ -93,26 +100,32 @@ class IfNoDiffExistsThenBreak(Task):
             return False
 
 class CheckState(Task):
-    def run(self, store):
-        current_state = self.get_state()
+    def run(self, store, engine):
+        current_state = self.get_state(engine)
         desired_state = dict(enable=True, disable=False)[self.params['eq']]
         if current_state == desired_state:
             return True
         else:
             return False
 
-    def get_state(self):
-        vclient = self.engine.params['vclient']
+    def get_state(self, engine):
+        vclient = engine.params['vclient']
+        pp(vclient)
         dvpg = DistributedVirtualPortgroup(vclient)
         dvpg.load('pg1')
 
         return True
 
 class SetState(Task):
-    def run(self, store):
+    def run(self, store, engine):
         return True
 
     def set_state_to(self, to):
+        return True
+
+class Replace(Task):
+    def run(self, store, engine):
+        print("Replacing...")
         return True
 
 class VClient:
@@ -134,7 +147,7 @@ def main():
         files=files
     )
     vclient = VClient()
-    vclient.connect(host='vcenter', user='user', password='pass', reuse=True)
+    # vclient.connect(host='vcenter', user='user', password='pass', reuse=True)
     w = Workflow(vclient=vclient)
     w.start(store)
     w << Diff()
@@ -146,6 +159,8 @@ def main():
 
     w = Workflow(vclient=vclient)
     for file, mode in store['files']:
+        pp(file)
+        pp(mode)
         store = dict(
             file=file,
             mode=mode,
@@ -154,7 +169,9 @@ def main():
         store['files'] = [file]
         w << Diff() << IfNoDiffExistsThenBreak()
         if mode == 'enable':
-            w << [ CheckState(eq='enable'), SetState(to='disable'), CheckState(eq='disable'), ]
+            w << [ CheckState(eq='enable'),
+             SetState(to='disable'), 
+             CheckState(eq='disable'), ]
         elif mode == 'disable':
             w << ( CheckState(eq='disable'), )
         elif mode == 'force-enable':
@@ -165,17 +182,6 @@ def main():
             raise Exception()
         
         w << Replace() << Diff()
-
-        # if mode == 'enable':
-        #     w << ( CheckState(eq='disable'), SetState(to='enable'), CheckState(eq='enable'), )
-        # elif mode == 'disable':
-        #     w << ( CheckState(eq='disable'), )
-        # elif mode == 'force-enable':
-        #     w << ( SetState(to='enable'), CheckState(eq='enable'), )
-        # elif mode == 'force-disable':
-        #     w << ( SetState(to='disable'), CheckState(eq='disable'), )
-        # else:
-        #     raise Exception()
 
         result = w.end()
         if result == False:
