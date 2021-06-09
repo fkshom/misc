@@ -1,0 +1,12 @@
+set firewall filter irb11in term A_192.168.11.0/24_192.168.12.0/24 source-address 192.168.11.0/24
+set firewall filter irb11in term A_192.168.11.0/24_192.168.12.0/24 destination-address 192.168.12.0/24
+set firewall filter irb11in term A_192.168.11.0/24_192.168.12.0/24 source-port 32768-65535
+set firewall filter irb11in term A_192.168.11.0/24_192.168.12.0/24 destination-port 53
+set firewall filter irb11in term A_192.168.11.0/24_192.168.12.0/24 protocol udp
+set firewall filter irb11in term A_192.168.11.0/24_192.168.12.0/24 accept
+set firewall filter irb12in term A_192.168.12.0/24_192.168.13.0/24 source-address 192.168.12.0/24
+set firewall filter irb12in term A_192.168.12.0/24_192.168.13.0/24 destination-address 192.168.13.0/24
+set firewall filter irb12in term A_192.168.12.0/24_192.168.13.0/24 source-port 32768-65535
+set firewall filter irb12in term A_192.168.12.0/24_192.168.13.0/24 destination-port 53
+set firewall filter irb12in term A_192.168.12.0/24_192.168.13.0/24 protocol udp
+set firewall filter irb12in term A_192.168.12.0/24_192.168.13.0/24 accep
