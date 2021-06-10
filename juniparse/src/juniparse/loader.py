@@ -35,42 +35,48 @@ class JuniperConfigStore:
                 result.append(rule)
         return result
 
+    def _parse_firewallfilter(self, line):
+        r = re.compile(r"set firewall filter (?P<filtername>[^ ]+) term (?P<termname>[^ ]+) (?P<param>.+)")
+        m = r.fullmatch(line)
+        if not m:
+            print(f"Unknown line: {line}")
+            raise Exception()
+
+        filtername = m.group("filtername")
+        termname = m.group("termname")
+        param = m.group("param")
+        r2 = re.compile(f"(?P<key>source-address|destination-address|source-port|destination-port|protocol) (?P<value>.+)")
+        m2 = r2.fullmatch(param)
+        if m2:
+            key = m2.group("key")
+            value = m2.group("value")
+            self._rules.setdefault(filtername, OrderedDict())
+            self._rules[filtername].setdefault(termname, {})
+            self._rules[filtername][termname].setdefault(key, [])
+            self._rules[filtername][termname][key].append(value)
+
+        r3 = re.compile(f"(?P<action>accept|deny)")
+        m3 = r3.fullmatch(param)
+        if m3:
+            action = m3.group("action")
+            self._rules.setdefault(filtername, OrderedDict())               
+            self._rules[filtername].setdefault(termname, {})
+            self._rules[filtername][termname]["action"] = action
+            
+    def _parse_interface(self, line):
+        pass
+
     def load(self, text):
         rules = OrderedDict()
         lines = text.split('\n')
         while len(lines) > 0:
             line = lines.pop(0)
-            if not line.startswith("set firewall filter"):
-                continue
-            
-            r = re.compile(r"set firewall filter (?P<filtername>[^ ]+) term (?P<termname>[^ ]+) (?P<param>.+)")
-            m = r.fullmatch(line)
-            if not m:
-                print(f"Unknown line: {line}")
-                continue
-
-            filtername = m.group("filtername")
-            termname = m.group("termname")
-            param = m.group("param")
-            r2 = re.compile(f"(?P<key>source-address|destination-address|source-port|destination-port|protocol) (?P<value>.+)")
-            m2 = r2.fullmatch(param)
-            if m2:
-                key = m2.group("key")
-                value = m2.group("value")
-                rules.setdefault(filtername, OrderedDict())
-                rules[filtername].setdefault(termname, {})
-                rules[filtername][termname].setdefault(key, [])
-                rules[filtername][termname][key].append(value)
-
-            r3 = re.compile(f"(?P<action>accept|deny)")
-            m3 = r3.fullmatch(param)
-            if m3:
-                action = m3.group("action")
-                rules.setdefault(filtername, OrderedDict())               
-                rules[filtername].setdefault(termname, {})
-                rules[filtername][termname]["action"] = action
-                
-        self._rules = rules
+            if line.startswith("set firewall filter"):
+                self._parse_firewallfilter(line)
+            elif line.startswith("deactivate firewall filter"):
+                self._parse_firewallfilter(line)
+            elif line.startswith("set interface"):
+                self._parse_interface(line)
 
     def load_from_file(self, filename):
         with open("sample.txt") as f:
