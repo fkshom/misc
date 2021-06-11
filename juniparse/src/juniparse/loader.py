@@ -5,7 +5,11 @@ from collections import OrderedDict
 
 class JuniperConfigStore:
     def __init__(self):
+        self._interfaces = OrderedDict()
         self._rules = OrderedDict()
+
+    def interfaces(self):
+        return self._interfaces
 
     def filternames(self):
         return self._rules.keys()
@@ -48,6 +52,8 @@ class JuniperConfigStore:
         param = m.group("param")
         r2 = re.compile(f"(?P<key>source-address|destination-address|source-port|destination-port|protocol) (?P<value>.+)")
         m2 = r2.fullmatch(param)
+        r2a = re.compile(f"(?P<key>tcp-initial|tcp-established)")
+        m2a = r2a.fullmatch(param)
         if m2:
             key = m2.group("key")
             value = m2.group("value")
@@ -55,32 +61,42 @@ class JuniperConfigStore:
             self._rules[filtername].setdefault(termname, {})
             self._rules[filtername][termname].setdefault(key, [])
             self._rules[filtername][termname][key].append(value)
+        if m2a:
+            key = m2a.group("key")
 
-        r3 = re.compile(f"(?P<action>accept|deny)")
+        r3 = re.compile(f"(?P<action>accept|discard|syslog|log)")
         m3 = r3.fullmatch(param)
+        r3a = re.compile(f"(?P<action>count) (?P<value>.+)")
+        m3a = r3a.fullmatch(param)
         if m3:
             action = m3.group("action")
             self._rules.setdefault(filtername, OrderedDict())               
             self._rules[filtername].setdefault(termname, {})
             self._rules[filtername][termname]["action"] = action
-        
+        if m3a:
+            action = m3a.group("action")
+
         return True
 
     def _parse_interface(self, line):
-        r = re.compile(r"(?P<command>set|deactivate) interface (?P<interface>[^ ]+) unit (?P<unit>[^ ]+) family inet filter (?P<direction>[^ ]+) (?P<filtername>.+)")
+        r = re.compile(r"(?P<command>set|deactivate) interfaces (?P<param>.+)")
         m = r.fullmatch(line)
         if not m:
             print(f"Unknown line: {line}")
             raise Exception()
-        
-        command = m.group("command") # 扱いに困っている
-        interface = m.group("interface")
-        unit = m.group("unit")
-        direction = m.group("direction")
-        filtername = m.group("filtername")
-        self._interface.setdefault(interface, OrderedDict())
-        self._interface[interface].setdefault(unit, OrderedDict())
-        self._interface[interface][unit][direction] = filtername
+        r1 = re.compile(r"(?P<interface>[^ ]+) unit (?P<unit>[^ ]+) family inet filter (?P<direction>[^ ]+) (?P<filtername>.+)")
+        m1 = r.fullmatch(line)
+        r2 = re.compile(r"(?P<ppp>description).+")
+        m2 = r.fullmatch(line)
+        if m1:
+            command = m1.group("command") # 扱いに困っている
+            interface = m1.group("interface")
+            unit = m1.group("unit")
+            direction = m1.group("direction")
+            filtername = m1.group("filtername")
+            self._interface.setdefault(interface, OrderedDict())
+            self._interface[interface].setdefault(unit, OrderedDict())
+            self._interface[interface][unit][direction] = filtername
 
         return True
 
@@ -93,9 +109,9 @@ class JuniperConfigStore:
                 self._parse_firewallfilter(line)
             elif line.startswith("deactivate firewall filter"):
                 self._parse_firewallfilter(line)
-            elif line.startswith("set interface irb unit"):
+            elif line.startswith("set interfaces"):
                 self._parse_interface(line)
-            elif line.startswith("deactivate interface irb unit"):
+            elif line.startswith("deactivate interfaces"):
                 self._parse_interface(line)
 
     def load_from_file(self, filename):
