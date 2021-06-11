@@ -36,12 +36,13 @@ class JuniperConfigStore:
         return result
 
     def _parse_firewallfilter(self, line):
-        r = re.compile(r"set firewall filter (?P<filtername>[^ ]+) term (?P<termname>[^ ]+) (?P<param>.+)")
+        r = re.compile(r"(?P<command>set|deactivate) firewall filter (?P<filtername>[^ ]+) term (?P<termname>[^ ]+) (?P<param>.+)")
         m = r.fullmatch(line)
         if not m:
             print(f"Unknown line: {line}")
             raise Exception()
 
+        command = m.group("command") # 扱いに困っている
         filtername = m.group("filtername")
         termname = m.group("termname")
         param = m.group("param")
@@ -62,9 +63,26 @@ class JuniperConfigStore:
             self._rules.setdefault(filtername, OrderedDict())               
             self._rules[filtername].setdefault(termname, {})
             self._rules[filtername][termname]["action"] = action
-            
+        
+        return True
+
     def _parse_interface(self, line):
-        pass
+        r = re.compile(r"(?P<command>set|deactivate) interface (?P<interface>[^ ]+) unit (?P<unit>[^ ]+) family inet filter (?P<direction>[^ ]+) (?P<filtername>.+)")
+        m = r.fullmatch(line)
+        if not m:
+            print(f"Unknown line: {line}")
+            raise Exception()
+        
+        command = m.group("command") # 扱いに困っている
+        interface = m.group("interface")
+        unit = m.group("unit")
+        direction = m.group("direction")
+        filtername = m.group("filtername")
+        self._interface.setdefault(interface, OrderedDict())
+        self._interface[interface].setdefault(unit, OrderedDict())
+        self._interface[interface][unit][direction] = filtername
+
+        return True
 
     def load(self, text):
         rules = OrderedDict()
@@ -75,7 +93,9 @@ class JuniperConfigStore:
                 self._parse_firewallfilter(line)
             elif line.startswith("deactivate firewall filter"):
                 self._parse_firewallfilter(line)
-            elif line.startswith("set interface"):
+            elif line.startswith("set interface irb unit"):
+                self._parse_interface(line)
+            elif line.startswith("deactivate interface irb unit"):
                 self._parse_interface(line)
 
     def load_from_file(self, filename):
