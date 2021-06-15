@@ -1,0 +1,16 @@
+users:
+  - id: 1
+    name: suzuki
+    age: 10
+    unko: unko
+  - id: 2 
+    name: tanaka
+    age: 15
+tasks:
+  - id: 1
+    name: working
+    user_id: 2
+  - id: 2
+    name: singing
+    user_id: 1
+    
