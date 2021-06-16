@@ -50,9 +50,9 @@ class JuniperConfigStore:
         filtername = m.group("filtername")
         termname = m.group("termname")
         param = m.group("param")
-        r2 = re.compile(f"(?P<key>source-address|destination-address|source-port|destination-port|protocol) (?P<value>.+)")
+        r2 = re.compile(f"from (?P<key>source-address|destination-address|source-port|destination-port|protocol) (?P<value>.+)")
         m2 = r2.fullmatch(param)
-        r2a = re.compile(f"(?P<key>tcp-initial|tcp-established)")
+        r2a = re.compile(f"from (?P<key>tcp-initial|tcp-established)")
         m2a = r2a.fullmatch(param)
         if m2:
             key = m2.group("key")
@@ -64,9 +64,9 @@ class JuniperConfigStore:
         if m2a:
             key = m2a.group("key")
 
-        r3 = re.compile(f"(?P<action>accept|discard|syslog|log)")
+        r3 = re.compile(f"then (?P<action>accept|discard|syslog|log)")
         m3 = r3.fullmatch(param)
-        r3a = re.compile(f"(?P<action>count) (?P<value>.+)")
+        r3a = re.compile(f"then (?P<action>count) (?P<value>.+)")
         m3a = r3a.fullmatch(param)
         if m3:
             action = m3.group("action")
@@ -120,28 +120,3 @@ class JuniperConfigStore:
         
         return self.load(text)
         
-
-text = """
-set firewall filter irb11in term B_192.168.11.0/24_192.168.12.0/24 source-address 192.168.11.0/24
-set firewall filter irb11in term B_192.168.11.0/24_192.168.12.0/24 destination-address 192.168.12.0/24
-set firewall filter irb11in term B_192.168.11.0/24_192.168.12.0/24 destination-address 192.168.12.0/24
-set firewall filter irb11in term B_192.168.11.0/24_192.168.12.0/24 source-port 32768-65535
-set firewall filter irb11in term B_192.168.11.0/24_192.168.12.0/24 source-port 32768-65535
-set firewall filter irb11in term B_192.168.11.0/24_192.168.12.0/24 destination-port 53
-set firewall filter irb11in term B_192.168.11.0/24_192.168.12.0/24 protocol udp
-set firewall filter irb11in term B_192.168.11.0/24_192.168.12.0/24 accept
-set firewall filter irb11in term A_192.168.11.0/24_192.168.12.0/24 source-address 192.168.11.0/24
-set firewall filter irb11in term A_192.168.11.0/24_192.168.12.0/24 destination-address 192.168.12.0/24
-set firewall filter irb11in term A_192.168.11.0/24_192.168.12.0/24 destination-address 192.168.12.0/24
-set firewall filter irb11in term A_192.168.11.0/24_192.168.12.0/24 source-port 32768-65535
-set firewall filter irb11in term A_192.168.11.0/24_192.168.12.0/24 source-port 32768-65535
-set firewall filter irb11in term A_192.168.11.0/24_192.168.12.0/24 destination-port 53
-set firewall filter irb11in term A_192.168.11.0/24_192.168.12.0/24 protocol udp
-set firewall filter irb11in term A_192.168.11.0/24_192.168.12.0/24 accept
-"""
-
-jcs = JuniperConfigStore()
-jcs.load(text)
-
-for rule in jcs.rules():
-    pp(rule)
