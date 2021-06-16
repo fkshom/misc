@@ -6,6 +6,7 @@ GEM
     benchmark (0.1.1)
     coderay (1.1.3)
     concurrent-ruby (1.1.8)
+    dry (0.0.1)
     dry-configurable (0.12.1)
       concurrent-ruby (~> 1.0)
       dry-core (~> 0.5, >= 0.5.0)
@@ -124,6 +125,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
+  dry
   pry
   rom
   rom-repository
