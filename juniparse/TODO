@@ -1,0 +1,8 @@
+Todo:
+  ☐ configをパースできる
+  ☐ パース結果はTermオブジェクトになる
+  ☐ termオブジェクトは
+  　 firewallfilterオブジェクトに含まれる
+  ☐ termをvalidateできる
+  ☐ flatten,bunchできる
+

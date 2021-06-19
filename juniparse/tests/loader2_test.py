@@ -1,6 +1,6 @@
 import pytest
 from pprint import pprint as pp
-import juniparse.loader
+import juniparse.loader2
 
 @pytest.fixture(scope='function', autouse=False)
 def sample1():
@@ -24,10 +24,10 @@ set firewall filter irb11in term A_192.168.11.0/24_192.168.12.0/24 then discard
 
 
 def test1(sample1):
-    jcs = juniparse.loader.JuniperConfigStore()
+    jcs = juniparse.loader2.JuniperConfigStore()
     jcs.load(sample1)
-    pp(jcs.rules())
-    for rule in jcs.rules():
+    pp(jcs._firewallfilters._filters)
+    for rule in jcs._firewallfilters._filters:
         pp(rule)
 
-    assert 1 == 1
+    assert 1 == 2

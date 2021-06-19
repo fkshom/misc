@@ -2,6 +2,23 @@ import re
 from pprint import pprint as pp
 from collections import OrderedDict
 
+class Term:
+    def __init__(self, **kwargs):
+        self._raw = kwargs
+    
+    def __getitem__(self, key):
+        return self._raw[key]
+
+    def __setitem__(self, key, val):
+        self._raw[key] = val
+
+class FirewallFilter:
+    def __init__(self):
+        self._terms = []
+
+    def add_term(self, **kwargs):
+        term = Term(kwargs)
+        self._terms.appnend(term)
 
 class JuniperConfigStore:
     def __init__(self):
@@ -99,6 +116,44 @@ class JuniperConfigStore:
             self._interface[interface][unit][direction] = filtername
 
         return True
+
+    def __load(self, text):
+        lines = text.split('\n')
+        while len(lines) > 0:
+            line = lines.pop(0)
+            if line.startswith("set firewall filter"):
+                self._add_firewallfilter(line)
+            elif line.startswith("deactivate firewall filter"):
+                self._add_firewallfilter(line)
+            elif line.startswith("set interfaces"):
+                self._add_interface(line)
+            elif line.startswith("deactivate interfaces"):
+                self._add_interface(line)
+
+
+    def __load(self, text):
+        rules = OrderedDict()
+        lines = text.split('\n')
+        while len(lines) > 0:
+            line = lines.pop(0)
+            if line.startswith("set firewall filter") or line.startswith("deactivate firewall filter"):
+                filtername, termname, params = self._parse_firewallfilter(line)
+                rules.setdefault(filtername, OrderedDict())
+                rules[filtername].setdefault(termname, [])
+                rules[filtername][termname].append(params)
+
+            elif line.startswith("set interfaces") or line.startswith("deactivate interfaces"):
+                interfacename, unit, direction, filtername = self._parse_interface(line)
+                rules.setdefault(interfacename, OrderedDict())
+                rules[filtername].setdefault(termname, [])
+                rules[filtername][termname].append(params)
+
+        for filtername, terms in rules:
+            ff = FirewallFilter(filtername)
+            for termname, params in terms:
+                ff.add_term(termname, params)
+
+        return self
 
     def load(self, text):
         rules = OrderedDict()
